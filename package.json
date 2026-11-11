@@ -4,9 +4,10 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "test": "node scripts/test-db-connection.js && node scripts/test-auth-cookies.js",
+    "test": "node scripts/test-db-connection.js && node scripts/test-auth-cookies.js && node scripts/test-db-reliability.js",
     "test:db": "node scripts/test-db-connection.js",
     "test:auth": "node scripts/test-auth-cookies.js",
+    "test:reliability": "node scripts/test-db-reliability.js",
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "create-admin": "node scripts/create-admin.js"

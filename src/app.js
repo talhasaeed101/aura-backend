@@ -7,11 +7,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
-const {
-  connectDB,
-  getDbHealth,
-  REQUIRED_DB_NAME,
-} = require("./config/db");
+const { probeDbHealth, REQUIRED_DB_NAME } = require("./config/db");
 const { isOriginAllowed } = require("./utils/corsOrigins");
 const requireDatabase = require("./middleware/requireDatabase");
 const requireAdminAuth = require("./middleware/requireAdminAuth");
@@ -71,15 +67,12 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 
 app.get("/api/health", async (_req, res) => {
-  // Attempt connection so health reflects real Atlas reachability on serverless.
-  try {
-    await connectDB();
-  } catch {
-    // Reported via getDbHealth() below; message stays non-sensitive.
-  }
-
-  const db = getDbHealth();
-  const connected = Boolean(db.connected) && db.name === REQUIRED_DB_NAME;
+  // Connect + ping (no secrets). 503 when aura_db is not ready.
+  const db = await probeDbHealth();
+  const connected =
+    Boolean(db.ok) &&
+    Boolean(db.connected) &&
+    db.name === REQUIRED_DB_NAME;
 
   const payload = {
     success: connected,
