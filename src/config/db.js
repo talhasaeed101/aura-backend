@@ -4,6 +4,17 @@ const REQUIRED_DB_NAME = "aura_db";
 const SERVER_SELECTION_TIMEOUT_MS = 10000;
 
 /**
+ * Cross-invocation cache for Vercel/serverless warm instances.
+ * Avoids opening a new MongoClient on every cold-adjacent request.
+ */
+const globalKey = "__aura_mongoose_cache__";
+const cache = globalThis[globalKey] || { promise: null };
+globalThis[globalKey] = cache;
+
+// Fail fast if a query runs without an established connection (no 10s buffer wait).
+mongoose.set("bufferCommands", false);
+
+/**
  * Parse MongoDB URI without logging credentials.
  * Returns { host, database } or throws on invalid URI shape.
  */
@@ -65,49 +76,93 @@ function assertAuraDatabaseName(databaseFromUri, databaseFromConnection) {
   }
 }
 
-async function connectDB() {
-  const uri = process.env.MONGODB_URI;
+function sanitizeMongoErrorMessage(message) {
+  return String(message || "Unknown error")
+    .replace(/mongodb(?:\+srv)?:\/\/[^\s'"]+/gi, "[redacted-uri]")
+    .replace(/pass(word)?[=:]\s*\S+/gi, "password=[redacted]");
+}
 
+function getMongoUri() {
+  const uri = process.env.MONGODB_URI;
   if (!uri || !String(uri).trim()) {
     throw new Error(
-      "MONGODB_URI is not set. Add the dedicated AURA Atlas connection string to backend/.env."
+      "MONGODB_URI is not set. Configure the dedicated AURA Atlas connection string in the runtime environment."
     );
   }
+  return uri.trim();
+}
 
-  const { host, database } = parseMongoUri(uri.trim());
-  assertAuraClusterHost(host);
-  assertAuraDatabaseName(database, null);
+/**
+ * Connect (or reuse) the shared Mongoose connection.
+ * Safe for local long-running servers and Vercel serverless invocations.
+ */
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
 
-  try {
-    const connection = await mongoose.connect(uri.trim(), {
-      dbName: REQUIRED_DB_NAME,
-      serverSelectionTimeoutMS: SERVER_SELECTION_TIMEOUT_MS,
-    });
+  if (cache.promise) {
+    return cache.promise;
+  }
 
-    const activeDbName = connection.connection.name;
-    assertAuraDatabaseName(database, activeDbName);
+  cache.promise = (async () => {
+    const uri = getMongoUri();
+    const { host, database } = parseMongoUri(uri);
+    assertAuraClusterHost(host);
+    assertAuraDatabaseName(database, null);
 
-    if (activeDbName !== REQUIRED_DB_NAME) {
-      await mongoose.connection.close();
-      throw new Error(
-        `Connected database was "${activeDbName}", expected "${REQUIRED_DB_NAME}". Connection closed.`
+    try {
+      const connection = await mongoose.connect(uri, {
+        dbName: REQUIRED_DB_NAME,
+        serverSelectionTimeoutMS: SERVER_SELECTION_TIMEOUT_MS,
+        maxPoolSize: 10,
+        // Keep serverless functions from holding idle sockets forever.
+        maxIdleTimeMS: 60_000,
+      });
+
+      const activeDbName = connection.connection.name;
+      assertAuraDatabaseName(database, activeDbName);
+
+      if (activeDbName !== REQUIRED_DB_NAME) {
+        await mongoose.connection.close();
+        throw new Error(
+          `Connected database was "${activeDbName}", expected "${REQUIRED_DB_NAME}". Connection closed.`
+        );
+      }
+
+      console.log(
+        `MongoDB connected — host: ${host}, database: ${REQUIRED_DB_NAME}`
       );
+
+      return connection.connection;
+    } catch (error) {
+      const safeMessage = sanitizeMongoErrorMessage(
+        error && error.message ? error.message : "Unknown error"
+      );
+      throw new Error(`MongoDB connection failed: ${safeMessage}`);
     }
+  })().catch((error) => {
+    // Allow the next request to retry after a failed attempt.
+    cache.promise = null;
+    throw error;
+  });
 
-    console.log(
-      `MongoDB connected — host: ${host}, database: ${REQUIRED_DB_NAME}`
+  return cache.promise;
+}
+
+/**
+ * Ensure MongoDB is connected and bound to aura_db.
+ * Throws a sanitized Error when unavailable.
+ */
+async function ensureDbConnected() {
+  await connectDB();
+  const health = getDbHealth();
+  if (!health.connected || health.name !== REQUIRED_DB_NAME) {
+    throw new Error(
+      `MongoDB is not ready (readyState=${health.readyState}).`
     );
-
-    return connection;
-  } catch (error) {
-    const safeMessage = error && error.message ? error.message : "Unknown error";
-    // Avoid leaking URI/credentials that drivers sometimes embed in messages.
-    const sanitized = safeMessage
-      .replace(/mongodb(?:\+srv)?:\/\/[^\s'"]+/gi, "[redacted-uri]")
-      .replace(/pass(word)?[=:]\s*\S+/gi, "password=[redacted]");
-
-    throw new Error(`MongoDB connection failed: ${sanitized}`);
   }
+  return health;
 }
 
 function getDbHealth() {
@@ -124,6 +179,7 @@ function getDbHealth() {
 }
 
 async function disconnectDB() {
+  cache.promise = null;
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
     console.log("MongoDB connection closed.");
@@ -132,7 +188,10 @@ async function disconnectDB() {
 
 module.exports = {
   connectDB,
+  ensureDbConnected,
   disconnectDB,
   getDbHealth,
+  parseMongoUri,
+  sanitizeMongoErrorMessage,
   REQUIRED_DB_NAME,
 };

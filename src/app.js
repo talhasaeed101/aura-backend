@@ -1,10 +1,19 @@
+// Local imports of app.js (and Vercel serverless entry) still pick up .env when present.
+// Existing process.env values (Vercel dashboard) are never overridden.
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
-const { getDbHealth, REQUIRED_DB_NAME } = require("./config/db");
+const {
+  connectDB,
+  getDbHealth,
+  REQUIRED_DB_NAME,
+} = require("./config/db");
 const { isOriginAllowed } = require("./utils/corsOrigins");
+const requireDatabase = require("./middleware/requireDatabase");
 const requireAdminAuth = require("./middleware/requireAdminAuth");
 const csrfOriginCheck = require("./middleware/csrfOrigin");
 const authRoutes = require("./routes/authRoutes");
@@ -41,6 +50,9 @@ const { notFoundHandler, errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
 
+// Vercel (and other reverse proxies) set X-Forwarded-For; required for secure rate limits.
+app.set("trust proxy", 1);
+
 app.use(helmet());
 app.use(
   cors({
@@ -58,7 +70,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (_req, res) => {
+  // Attempt connection so health reflects real Atlas reachability on serverless.
+  try {
+    await connectDB();
+  } catch {
+    // Reported via getDbHealth() below; message stays non-sensitive.
+  }
+
   const db = getDbHealth();
   const connected = Boolean(db.connected) && db.name === REQUIRED_DB_NAME;
 
@@ -70,6 +89,7 @@ app.get("/api/health", (req, res) => {
     database: {
       connected,
       name: db.name || null,
+      readyState: db.readyState,
     },
     environment: process.env.NODE_ENV || "development",
   };
@@ -80,6 +100,9 @@ app.get("/api/health", (req, res) => {
 
   return res.status(200).json(payload);
 });
+
+// All data routes require a live MongoDB connection (includes /api/auth/login).
+app.use("/api", requireDatabase);
 
 // Auth (login is public; me/logout require session)
 app.use("/api/auth", authRoutes);

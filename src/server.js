@@ -10,6 +10,8 @@ let server;
 
 async function start() {
   try {
+    // Local/long-running entry: connect before accepting traffic.
+    // Vercel uses api/index.js + per-request ensureDbConnected instead.
     await connectDB();
 
     // Validate R2 env and initialize S3-compatible client before serving traffic.

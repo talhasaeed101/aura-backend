@@ -25,6 +25,16 @@ function errorHandler(err, req, res, next) {
   } else if (err instanceof mongoose.Error.CastError) {
     status = 400;
     message = `Invalid ${err.path || "value"}.`;
+  } else if (
+    err instanceof mongoose.Error.MongooseServerSelectionError ||
+    (typeof message === "string" &&
+      (/buffering timed out/i.test(message) ||
+        /bufferCommands/i.test(message) ||
+        /Cannot call .* before initial connection/i.test(message)))
+  ) {
+    status = 503;
+    message = "Database unavailable. Please try again shortly.";
+    errors = [];
   } else if (err && err.code === 11000) {
     status = 409;
     const fields = Object.keys(err.keyPattern || err.keyValue || {});
@@ -37,9 +47,13 @@ function errorHandler(err, req, res, next) {
     }));
   }
 
-  if (status >= 500 && status !== 502) {
-    console.error(err);
-    if (process.env.NODE_ENV === "production") {
+  // Log unexpected server failures; keep intentional operational API errors (e.g. 503 DB down).
+  if (status >= 500) {
+    const operational = err instanceof ApiError && err.isOperational;
+    if (!(status === 503 && operational)) {
+      console.error(err);
+    }
+    if (process.env.NODE_ENV === "production" && !operational) {
       message = "Internal server error";
       errors = [];
     }
