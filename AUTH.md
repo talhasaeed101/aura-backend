@@ -42,4 +42,6 @@ Safe to re-run: if an admin already exists, credentials are left unchanged.
 - `JWT_EXPIRES_IN` — e.g. `7d`
 - `AUTH_COOKIE_NAME` — default `aura_admin_token`
 - `ADMIN_USERNAME` / `ADMIN_EMAIL` / `ADMIN_PASSWORD` — bootstrap only
-- `CORS_ORIGIN` — comma-separated allowlist (credentials enabled)
+- `CORS_ORIGIN` — comma-separated allowlist (credentials enabled; no `*`)
+- Production Admin/API are different `vercel.app` hosts (public suffix) → auth cookie is `SameSite=None; Secure; HttpOnly` when `VERCEL=1` or `NODE_ENV=production`
+- Optional: `AUTH_COOKIE_SAMESITE=none|lax` to override cookie SameSite detection

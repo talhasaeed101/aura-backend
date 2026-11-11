@@ -19,18 +19,36 @@ function parseExpiresInToMs(value) {
   return amount * multipliers[unit];
 }
 
-function isProduction() {
-  return process.env.NODE_ENV === "production";
+/**
+ * Admin (aura-admin-*.vercel.app) and API (aura-backend-*.vercel.app) are
+ * cross-site: `vercel.app` is on the public suffix list, so each subdomain is
+ * its own site. Credentialed fetch therefore requires SameSite=None; Secure.
+ *
+ * Do NOT key this only off NODE_ENV — Vercel may run with NODE_ENV=development
+ * while still serving HTTPS cross-origin traffic.
+ */
+function useCrossSiteAuthCookie() {
+  const override = String(process.env.AUTH_COOKIE_SAMESITE || "")
+    .trim()
+    .toLowerCase();
+  if (override === "none") return true;
+  if (override === "lax" || override === "strict") return false;
+
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
 }
 
 function getCookieOptions() {
   const maxAge = parseExpiresInToMs(process.env.JWT_EXPIRES_IN);
+  const crossSite = useCrossSiteAuthCookie();
+
   return {
     httpOnly: true,
-    secure: isProduction(),
-    sameSite: isProduction() ? "none" : "lax",
+    // SameSite=None requires Secure. Local HTTP keeps Lax without Secure.
+    secure: crossSite,
+    sameSite: crossSite ? "none" : "lax",
     path: "/",
     maxAge,
+    // Never set Domain to the admin host — omit Domain so the cookie stays on the API host.
   };
 }
 
@@ -39,11 +57,12 @@ function setAuthCookie(res, token) {
 }
 
 function clearAuthCookie(res) {
+  const options = getCookieOptions();
   res.clearCookie(COOKIE_NAME, {
-    httpOnly: true,
-    secure: isProduction(),
-    sameSite: isProduction() ? "none" : "lax",
-    path: "/",
+    httpOnly: options.httpOnly,
+    secure: options.secure,
+    sameSite: options.sameSite,
+    path: options.path,
   });
 }
 
@@ -55,6 +74,7 @@ function readAuthToken(req) {
 module.exports = {
   COOKIE_NAME,
   parseExpiresInToMs,
+  useCrossSiteAuthCookie,
   getCookieOptions,
   setAuthCookie,
   clearAuthCookie,
