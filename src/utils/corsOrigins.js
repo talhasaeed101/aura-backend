@@ -5,6 +5,9 @@
  */
 const REQUIRED_PRODUCTION_ORIGINS = [
   "https://aura-admin-ten-puce.vercel.app",
+  "https://www.auraexecutivetransportation.com",
+  "https://auraexecutivetransportation.com",
+  // Legacy Vercel public host — keep until DNS cutover is fully retired.
   "https://auratransport.vercel.app",
 ];
 

@@ -84,7 +84,12 @@ app.get("/api/health", async (_req, res) => {
       name: db.name || null,
       readyState: db.readyState,
     },
-    environment: process.env.NODE_ENV || "development",
+    // Prefer Vercel deployment env so production health is not stuck on
+    // NODE_ENV=development when that dashboard value is mis-set.
+    environment:
+      process.env.VERCEL_ENV ||
+      process.env.NODE_ENV ||
+      "development",
   };
 
   if (!connected) {

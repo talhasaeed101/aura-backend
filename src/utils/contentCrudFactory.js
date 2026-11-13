@@ -6,6 +6,7 @@ const { toClientDoc, toClientDocs } = require("./document");
 const { sendSuccess } = require("./response");
 const { slugify, ensureUniqueSlug } = require("./slugify");
 const { logActivity } = require("../services/activityService");
+const { notifyPublicRevalidate } = require("./notifyPublicRevalidate");
 
 function createContentControllers({
   Model,
@@ -169,6 +170,8 @@ function createContentControllers({
       detail: item.title || item.name || String(item._id),
     });
 
+    void notifyPublicRevalidate({ resourceLabel });
+
     return sendSuccess(res, {
       status: 201,
       message: `${resourceLabel} created.`,
@@ -199,6 +202,8 @@ function createContentControllers({
       title: `${resourceLabel} updated`,
       detail: item.title || String(item._id),
     });
+
+    void notifyPublicRevalidate({ resourceLabel });
 
     return sendSuccess(res, {
       message: `${resourceLabel} updated.`,
@@ -237,6 +242,8 @@ function createContentControllers({
       detail: `${item.title} → ${item.publishStatus}`,
     });
 
+    void notifyPublicRevalidate({ resourceLabel });
+
     return sendSuccess(res, {
       message: `${resourceLabel} publish status updated.`,
       data: toClientDoc(item),
@@ -261,6 +268,8 @@ function createContentControllers({
       title: `${resourceLabel} featured updated`,
       detail: `${item.title} → featured=${item.featured}`,
     });
+
+    void notifyPublicRevalidate({ resourceLabel });
 
     return sendSuccess(res, {
       message: `${resourceLabel} featured flag updated.`,
@@ -322,6 +331,8 @@ function createContentControllers({
       title: `${resourceLabel} deleted`,
       detail: item.title || String(id),
     });
+
+    void notifyPublicRevalidate({ resourceLabel });
 
     return sendSuccess(res, {
       message: `${resourceLabel} deleted.`,

@@ -26,6 +26,7 @@ const vehicleSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
       maxlength: 40,
+      unique: true,
     },
     seatingCapacity: { type: Number, required: true, min: 1, max: 20 },
     transmission: {

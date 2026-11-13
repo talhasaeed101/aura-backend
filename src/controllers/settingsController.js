@@ -5,6 +5,7 @@ const ApiError = require("../utils/ApiError");
 const { toClientDoc } = require("../utils/document");
 const { sendSuccess } = require("../utils/response");
 const { logActivity } = require("../services/activityService");
+const { notifyPublicRevalidate } = require("../utils/notifyPublicRevalidate");
 
 const SETTINGS_LIMITS = {
   companyName: 80,
@@ -175,6 +176,8 @@ const putAdminSettings = asyncHandler(async (req, res) => {
     detail: "Full settings save",
   });
 
+  void notifyPublicRevalidate({ resourceLabel: "Settings" });
+
   return sendSuccess(res, {
     message: "Settings saved.",
     data: toClientDoc(settings),
@@ -210,6 +213,8 @@ function patchSection(sectionName, validator) {
       detail: sectionName,
     });
 
+    void notifyPublicRevalidate({ resourceLabel: "Settings" });
+
     return sendSuccess(res, {
       message: `Settings ${sectionName} updated.`,
       data: toClientDoc(settings),
@@ -238,6 +243,8 @@ const patchSocial = asyncHandler(async (req, res) => {
     title: "Settings social links updated",
     detail: `${settings.socialLinks.length} link(s)`,
   });
+
+  void notifyPublicRevalidate({ resourceLabel: "Settings" });
 
   return sendSuccess(res, {
     message: "Settings social links updated.",

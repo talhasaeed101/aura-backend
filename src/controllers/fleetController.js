@@ -6,6 +6,7 @@ const { parsePagination, paginatedResult } = require("../utils/pagination");
 const { toClientDoc, toClientDocs } = require("../utils/document");
 const { sendSuccess } = require("../utils/response");
 const { logActivity } = require("../services/activityService");
+const { notifyPublicRevalidate } = require("../utils/notifyPublicRevalidate");
 
 function buildFleetFilter(query, { publicOnly = false } = {}) {
   const filter = {};
@@ -97,6 +98,16 @@ function pickVehicleBody(body = {}) {
   return payload;
 }
 
+async function assertUniqueRegistration(registrationNumber, excludeId) {
+  if (!registrationNumber) return;
+  const filter = { registrationNumber };
+  if (excludeId) filter._id = { $ne: excludeId };
+  const existing = await Vehicle.findOne(filter).select("_id").lean();
+  if (existing) {
+    throw new ApiError(409, "A vehicle with this registration number already exists.");
+  }
+}
+
 const listAdminFleet = asyncHandler(async (req, res) => {
   const filter = buildFleetFilter(req.query);
   const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20 });
@@ -145,6 +156,7 @@ const getFleetById = asyncHandler(async (req, res) => {
 
 const createFleet = asyncHandler(async (req, res) => {
   const payload = pickVehicleBody(req.body);
+  await assertUniqueRegistration(payload.registrationNumber);
   const vehicle = await Vehicle.create(payload);
 
   await logActivity({
@@ -152,6 +164,8 @@ const createFleet = asyncHandler(async (req, res) => {
     title: "Vehicle created",
     detail: vehicle.name,
   });
+
+  void notifyPublicRevalidate({ resourceLabel: "Vehicle", paths: ["/fleet"] });
 
   return sendSuccess(res, {
     status: 201,
@@ -163,6 +177,9 @@ const createFleet = asyncHandler(async (req, res) => {
 const updateFleet = asyncHandler(async (req, res) => {
   const id = parseObjectId(req.params.id, "vehicle");
   const payload = pickVehicleBody(req.body);
+  if (payload.registrationNumber) {
+    await assertUniqueRegistration(payload.registrationNumber, id);
+  }
   const vehicle = await Vehicle.findByIdAndUpdate(id, payload, {
     new: true,
     runValidators: true,
@@ -174,6 +191,8 @@ const updateFleet = asyncHandler(async (req, res) => {
     title: "Vehicle updated",
     detail: vehicle.name,
   });
+
+  void notifyPublicRevalidate({ resourceLabel: "Vehicle", paths: ["/fleet"] });
 
   return sendSuccess(res, {
     message: "Vehicle updated.",
@@ -230,6 +249,8 @@ const togglePublish = asyncHandler(async (req, res) => {
     detail: `${vehicle.name} → ${vehicle.publishStatus}`,
   });
 
+  void notifyPublicRevalidate({ resourceLabel: "Vehicle", paths: ["/fleet"] });
+
   return sendSuccess(res, {
     message: "Vehicle publish status updated.",
     data: toClientDoc(vehicle),
@@ -246,6 +267,8 @@ const deleteFleet = asyncHandler(async (req, res) => {
     title: "Vehicle deleted",
     detail: vehicle.name,
   });
+
+  void notifyPublicRevalidate({ resourceLabel: "Vehicle", paths: ["/fleet"] });
 
   return sendSuccess(res, {
     message: "Vehicle deleted.",
