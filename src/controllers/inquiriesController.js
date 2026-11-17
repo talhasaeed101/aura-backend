@@ -34,6 +34,8 @@ function buildInquiryFilter(query) {
       { company: new RegExp(q, "i") },
       { subject: new RegExp(q, "i") },
       { message: new RegExp(q, "i") },
+      { pickup: new RegExp(q, "i") },
+      { dropoff: new RegExp(q, "i") },
     ];
   }
 
@@ -71,7 +73,10 @@ const createPublicInquiry = asyncHandler(async (req, res) => {
     inquiryType: body.inquiryType,
     subject: String(body.subject).trim(),
     message: String(body.message).trim(),
+    pickup: body.pickup ? String(body.pickup).trim() : "",
+    dropoff: body.dropoff ? String(body.dropoff).trim() : "",
     requestedDate: body.requestedDate ? new Date(body.requestedDate) : null,
+    requestedTime: body.requestedTime ? String(body.requestedTime).trim() : "",
     passengerCount:
       body.passengerCount === undefined || body.passengerCount === null
         ? null

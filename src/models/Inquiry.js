@@ -31,7 +31,10 @@ const inquirySchema = new mongoose.Schema(
     inquiryType: { type: String, required: true, enum: INQUIRY_TYPES },
     subject: { type: String, required: true, trim: true, maxlength: 200 },
     message: { type: String, required: true, trim: true, maxlength: 5000 },
+    pickup: { type: String, default: "", trim: true, maxlength: 240 },
+    dropoff: { type: String, default: "", trim: true, maxlength: 240 },
     requestedDate: { type: Date, default: null },
+    requestedTime: { type: String, default: "", trim: true, maxlength: 16 },
     passengerCount: { type: Number, default: null, min: 1, max: 100 },
     status: {
       type: String,
@@ -52,6 +55,8 @@ inquirySchema.index({
   company: "text",
   subject: "text",
   message: "text",
+  pickup: "text",
+  dropoff: "text",
 });
 
 module.exports = mongoose.model("Inquiry", inquirySchema);
