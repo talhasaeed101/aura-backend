@@ -23,9 +23,9 @@ const caseStudySchema = new mongoose.Schema(
     organizationLabel: { type: String, required: true, trim: true, maxlength: 160 },
     industry: { type: String, required: true, enum: CASE_STUDY_INDUSTRIES },
     shortSummary: { type: String, required: true, trim: true, maxlength: 500 },
-    challenge: { type: String, required: true, trim: true, maxlength: 4000 },
-    approach: { type: String, required: true, trim: true, maxlength: 4000 },
-    outcome: { type: String, required: true, trim: true, maxlength: 4000 },
+    challenge: { type: String, required: true, trim: true, maxlength: 50000 },
+    approach: { type: String, required: true, trim: true, maxlength: 50000 },
+    outcome: { type: String, required: true, trim: true, maxlength: 50000 },
     displayOrder: { type: Number, default: 0 },
     featured: { type: Boolean, default: false },
     publishStatus: {

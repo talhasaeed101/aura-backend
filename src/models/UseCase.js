@@ -21,7 +21,7 @@ const useCaseSchema = new mongoose.Schema(
       maxlength: 160,
     },
     shortDescription: { type: String, required: true, trim: true, maxlength: 400 },
-    fullDescription: { type: String, required: true, trim: true, maxlength: 8000 },
+    fullDescription: { type: String, required: true, trim: true, maxlength: 50000 },
     category: { type: String, required: true, enum: USE_CASE_CATEGORIES },
     displayOrder: { type: Number, default: 0 },
     featured: { type: Boolean, default: false },

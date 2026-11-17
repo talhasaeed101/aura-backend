@@ -21,7 +21,7 @@ const blogPostSchema = new mongoose.Schema(
       maxlength: 200,
     },
     excerpt: { type: String, required: true, trim: true, maxlength: 500 },
-    content: { type: String, required: true, trim: true, maxlength: 50000 },
+    content: { type: String, required: true, trim: true, maxlength: 100000 },
     category: { type: String, required: true, enum: BLOG_CATEGORIES },
     author: { type: String, required: true, trim: true, maxlength: 120 },
     featured: { type: Boolean, default: false },
